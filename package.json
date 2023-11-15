@@ -1,0 +1,13 @@
+{
+  "name": "sand-box",
+  "version": "0.0.0-prerelease",
+  "repository": "https://github.com/dpee-dreamers/sand-box.git",
+  "main": "index.js",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "semantic-release": "^22.0.5"
+  },
+  "scripts": {
+    "test": "jest test.js"
+  }
+}
