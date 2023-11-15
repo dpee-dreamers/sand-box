@@ -1,6 +1,6 @@
 {
   "name": "sand-box",
-  "version": "0.0.0-prerelease",
+  "version": "0.0.0-development",
   "repository": "https://github.com/dpee-dreamers/sand-box.git",
   "main": "index.js",
   "devDependencies": {
