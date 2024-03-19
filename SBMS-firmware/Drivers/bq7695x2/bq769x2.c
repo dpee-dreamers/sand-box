@@ -21,7 +21,7 @@
 //#include <bms/bms_common.h>
 //#include <drivers/bms_ic.h>
 #include "bms_common.h"
-//#include "bms_ic.h"
+#include "bms_ic.h"
 
 #include <math.h>
 #include <stdbool.h>
