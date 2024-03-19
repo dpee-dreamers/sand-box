@@ -9,7 +9,7 @@
 #define BQ7695X2_BQ769X2_PRIV_H_
 
 //#include <drivers/bms_ic.h>
-#include "bms_ic.h"
+#include "bms.h"
 
 #include <stdint.h>
 #include <string.h>

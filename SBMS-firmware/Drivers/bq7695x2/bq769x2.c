@@ -21,7 +21,7 @@
 //#include <bms/bms_common.h>
 //#include <drivers/bms_ic.h>
 #include "bms_common.h"
-#include "bms_ic.h"
+//#include "bms_ic.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -30,7 +30,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "device.h"
+#include "bms.h"
 //#include <zephyr/device.h>
 //#include <zephyr/drivers/gpio.h>
 //#include <zephyr/drivers/i2c.h>
