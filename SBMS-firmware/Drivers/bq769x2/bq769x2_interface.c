@@ -12,10 +12,10 @@
  */
 
 #include "bq769x2_interface.h"
-#include "bq769x2_priv.h"
-#include "bq769x2_registers.h"
 
 #include <string.h>
+#include "bq769x2_priv.h"
+#include "bq769x2_registers.h"
 
 //#include <zephyr/drivers/i2c.h>
 //#include <zephyr/kernel.h>

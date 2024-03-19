@@ -15,12 +15,10 @@
 //#include <bms/bms.h>
 //#include <bms/bms_common.h>
 
-#include "bms.h"
 #include "bms_common.h"
 
-//#include "helper.h"
-
 #include <stdio.h>
+#include "bms.h"
 
 LOG_MODULE_REGISTER(bms, CONFIG_LOG_DEFAULT_LEVEL);
 

@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 /*
  * VS Code intellisense can't cope with all the Zephyr macro layers for logging, so provide it
  * with something more simple and make it silent.

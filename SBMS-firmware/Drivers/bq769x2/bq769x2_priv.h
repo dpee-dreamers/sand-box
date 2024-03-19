@@ -5,14 +5,13 @@
  *      Author: bobo
  */
 
-#ifndef BQ7695X2_BQ769X2_PRIV_H_
-#define BQ7695X2_BQ769X2_PRIV_H_
+#ifndef BQ769X2_BQ769X2_PRIV_H_
+#define BQ769X2_BQ769X2_PRIV_H_
 
 //#include <drivers/bms_ic.h>
-#include "bms_ic.h"
-
 #include <stdint.h>
 #include <string.h>
+#include "bms_ic.h"
 
 struct i2c_dt_spec {
 	const struct device *bus;
@@ -75,4 +74,4 @@ struct bms_ic_bq769x2_data
 };
 
 
-#endif /* BQ7695X2_BQ769X2_PRIV_H_ */
+#endif /* BQ769X2_BQ769X2_PRIV_H_ */

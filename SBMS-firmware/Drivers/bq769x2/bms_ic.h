@@ -8,11 +8,10 @@
 #ifndef INC_BMS_IC_H_
 #define INC_BMS_IC_H_
 
-#include "bms.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <errno.h>
+#include "bms.h"
 
 /* Caution: Maximum number of flags is 31 (BIT(30)) because the flags must fit to an int32_t */
 #define BMS_IC_CONF_VOLTAGE_LIMITS BIT(0)

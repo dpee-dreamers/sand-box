@@ -5,8 +5,8 @@
  *      Author: bobo
  */
 
-#ifndef BQ7695X2_BQ769X2_REGISTERS_H_
-#define BQ7695X2_BQ769X2_REGISTERS_H_
+#ifndef BQ769X2_BQ769X2_REGISTERS_H_
+#define BQ769X2_BQ769X2_REGISTERS_H_
 
 #include <stdint.h>
 
@@ -530,4 +530,4 @@ union bq769x2_reg_bat_status {
 #define bq769x2_reg_alarm_sf_alert_mask_c bq769x2_reg_safety_c
 
 
-#endif /* BQ7695X2_BQ769X2_REGISTERS_H_ */
+#endif /* BQ769X2_BQ769X2_REGISTERS_H_ */

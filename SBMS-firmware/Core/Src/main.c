@@ -22,8 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "bms.h"
-#include "bq769x2_interface.h"
+#include "../../Drivers/bq769x2/bms.h"
+#include "../../Drivers/bq769x2/bq769x2_interface.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

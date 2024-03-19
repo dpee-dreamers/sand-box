@@ -5,8 +5,8 @@
  *      Author: bobo
  */
 
-#ifndef BQ7695X2_BQ769X2_INTERFACE_H_
-#define BQ7695X2_BQ769X2_INTERFACE_H_
+#ifndef BQ769X2_BQ769X2_INTERFACE_H_
+#define BQ769X2_BQ769X2_INTERFACE_H_
 
 /*
  * Copyright (c) The Libre Solar Project Contributors
@@ -14,10 +14,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "bms.h"
-
 #include <stdbool.h>
 #include <stdint.h>
+#include "bms.h"
 
 /**
  * Set bq769x2 config update mode
@@ -268,4 +267,4 @@ int bq769x2_datamem_write_i2(const struct device *dev, const uint16_t reg_addr, 
  */
 int bq769x2_datamem_write_f4(const struct device *dev, const uint16_t reg_addr, float value);
 
-#endif /* BQ7695X2_BQ769X2_INTERFACE_H_ */
+#endif /* BQ769X2_BQ769X2_INTERFACE_H_ */

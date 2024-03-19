@@ -12,9 +12,9 @@
  */
 
 //#include <bms/bms.h>
+#include "helper.h"
 #include "bms.h"
 
-#include "helper.h"
 
 
 void bms_soc_reset(struct bms_context *bms, int percent)
