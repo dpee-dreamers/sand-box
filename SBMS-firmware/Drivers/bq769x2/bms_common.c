@@ -12,15 +12,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//#include <bms/bms.h>
-//#include <bms/bms_common.h>
-
-#include "bms_common.h"
-
 #include <stdio.h>
+#include "bms_common.h"
 #include "bms.h"
+#include "bms_ic.h"
+#include  "helper.h"
 
-LOG_MODULE_REGISTER(bms, CONFIG_LOG_DEFAULT_LEVEL);
+//LOG_MODULE_REGISTER(bms, CONFIG_LOG_DEFAULT_LEVEL);
 
 static float ocv_lfp[OCV_POINTS] = { 3.392F, 3.314F, 3.309F, 3.308F, 3.304F, 3.296F, 3.283F,
                                      3.275F, 3.271F, 3.268F, 3.265F, 3.264F, 3.262F, 3.252F,
@@ -38,7 +36,7 @@ static float soc_pct[OCV_POINTS] = { 100.0F, 95.0F, 90.0F, 85.0F, 80.0F, 85.0F, 
 
 float soc_custom[OCV_POINTS] = { 0 };
 
-void bms_init_config(struct bms_context *bms, enum bms_cell_type type, float nominal_capacity_Ah)
+void bms_init_config(bms_context_t *bms, enum bms_cell_type type, float nominal_capacity_Ah)
 {
     bms->nominal_capacity_Ah = nominal_capacity_Ah;
 
@@ -119,19 +117,19 @@ void bms_init_config(struct bms_context *bms, enum bms_cell_type type, float nom
     bms->ic_conf.alert_mask = BMS_ERR_ALL;
 }
 
-void bms_state_machine(struct bms_context *bms)
+void bms_state_machine(bms_context_t *bms)
 {
     switch (bms->state) {
         case BMS_STATE_OFF:
             if (bms_dis_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_DIS, true);
                 bms->state = BMS_STATE_DIS;
-                LOG_INF("OFF -> DIS (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("OFF -> DIS (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             else if (bms_chg_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_CHG, true);
                 bms->state = BMS_STATE_CHG;
-                LOG_INF("OFF -> CHG (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("OFF -> CHG (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             break;
         case BMS_STATE_CHG:
@@ -140,12 +138,12 @@ void bms_state_machine(struct bms_context *bms)
                 /* DIS switch may be on on because of ideal diode control */
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_DIS, false);
                 bms->state = BMS_STATE_OFF;
-                LOG_INF("CHG -> OFF (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("CHG -> OFF (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             else if (bms_dis_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_DIS, true);
                 bms->state = BMS_STATE_NORMAL;
-                LOG_INF("CHG -> NORMAL (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("CHG -> NORMAL (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
 #ifndef CONFIG_BMS_IC_BQ769X2 /* bq769x2 has built-in ideal diode control */
             else {
@@ -165,12 +163,12 @@ void bms_state_machine(struct bms_context *bms)
                 /* CHG_FET may be on because of ideal diode control */
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_CHG, false);
                 bms->state = BMS_STATE_OFF;
-                LOG_INF("DIS -> OFF (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("DIS -> OFF (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             else if (bms_chg_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_CHG, true);
                 bms->state = BMS_STATE_NORMAL;
-                LOG_INF("DIS -> NORMAL (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("DIS -> NORMAL (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
 #ifndef CONFIG_BMS_IC_BQ769X2 /* bq769x2 has built-in ideal diode control */
             else {
@@ -188,12 +186,12 @@ void bms_state_machine(struct bms_context *bms)
             if (!bms_dis_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_DIS, false);
                 bms->state = BMS_STATE_CHG;
-                LOG_INF("NORMAL -> CHG (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("NORMAL -> CHG (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             else if (!bms_chg_allowed(bms)) {
                 bms_ic_set_switches(bms->ic_dev, BMS_SWITCH_CHG, false);
                 bms->state = BMS_STATE_DIS;
-                LOG_INF("NORMAL -> DIS (error flags: 0x%08x)", bms->ic_data.error_flags);
+                LOG_INF("NORMAL -> DIS (error flags: 0x%08x)", (unsigned int)bms->ic_data.error_flags);
             }
             break;
         case BMS_STATE_SHUTDOWN:
@@ -218,13 +216,13 @@ bool bms_dis_error(uint32_t error_flags)
               | BMS_ERR_INT_OVERTEMP | BMS_ERR_CELL_FAILURE | BMS_ERR_DIS_OFF);
 }
 
-bool bms_chg_allowed(struct bms_context *bms)
+bool bms_chg_allowed(bms_context_t *bms)
 {
     return !bms_chg_error(bms->ic_data.error_flags & ~BMS_ERR_CHG_OFF) && !bms->full
            && bms->chg_enable;
 }
 
-bool bms_dis_allowed(struct bms_context *bms)
+bool bms_dis_allowed(bms_context_t *bms)
 {
     return !bms_dis_error(bms->ic_data.error_flags & ~BMS_ERR_DIS_OFF) && !bms->empty
            && bms->dis_enable;

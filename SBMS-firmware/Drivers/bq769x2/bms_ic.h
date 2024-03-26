@@ -33,35 +33,35 @@
 #define BMS_IC_BALANCING_OFF  (0)
 #define BMS_IC_BALANCING_AUTO (UINT32_MAX)
 
+    
 /**
  * @cond INTERNAL_HIDDEN
  *
  * Zephyr driver API function pointer declarations (see further down for documentation)
  */
 
-typedef int (*bms_ic_api_configure)(const struct device *dev, struct bms_ic_conf *ic_conf,
+typedef int (*bms_ic_api_configure)(const device_t *dev, bms_ic_conf_t *ic_conf,
                                     uint32_t flags);
 
-typedef void (*bms_ic_api_assign_data)(const struct device *dev, struct bms_ic_data *ic_data);
+typedef void (*bms_ic_api_assign_data)(const device_t *dev, bms_ic_data_t *ic_data);
 
-typedef int (*bms_ic_api_read_data)(const struct device *dev, uint32_t flags);
+typedef int (*bms_ic_api_read_data)(const device_t *dev, uint32_t flags);
 
-typedef int (*bms_ic_api_set_switches)(const struct device *dev, uint8_t switches, bool enabled);
+typedef int (*bms_ic_api_set_switches)(const device_t *dev, uint8_t switches, bool enabled);
 
-typedef int (*bms_ic_api_balance)(const struct device *dev, uint32_t cells);
+typedef int (*bms_ic_api_balance)(const device_t *dev, uint32_t cells);
 
-typedef int (*bms_ic_api_set_mode)(const struct device *dev, enum bms_ic_mode mode);
+typedef int (*bms_ic_api_set_mode)(const device_t *dev, bms_ic_mode_t mode);
 
-typedef int (*bms_ic_api_read_mem)(const struct device *dev, const uint16_t addr, uint8_t *data,
+typedef int (*bms_ic_api_read_mem)(const device_t *dev, const uint16_t addr, uint8_t *data,
                                    const size_t len);
 
-typedef int (*bms_ic_api_write_mem) (const struct device *dev, const uint16_t addr,
+typedef int (*bms_ic_api_write_mem) (const device_t *dev, const uint16_t addr,
                                     const uint8_t *data, const size_t len);
 
-typedef int (*bms_ic_api_debug_print_mem) (const struct device *dev);
+typedef int (*bms_ic_api_debug_print_mem) (const device_t *dev);
 
-struct bms_ic_driver_api
-{
+typedef struct {
     bms_ic_api_configure        configure;
     bms_ic_api_assign_data      assign_data;
     bms_ic_api_read_data        read_data;
@@ -71,7 +71,7 @@ struct bms_ic_driver_api
     bms_ic_api_read_mem         read_mem;
     bms_ic_api_write_mem        write_mem;
     bms_ic_api_debug_print_mem  debug_print_mem;
-};
+} bms_ic_driver_api_t;
 
 /**
  * @endcond
@@ -92,10 +92,9 @@ struct bms_ic_driver_api
  * @retval -ENOTSUP if none of the requested flags is supported
  * @retval -EIO for communication error
  */
-static inline int bms_ic_configure(const struct device *dev, struct bms_ic_conf *ic_conf,
-                                   uint32_t flags)
+static inline int bms_ic_configure(const device_t *dev, bms_ic_conf_t *ic_conf, uint32_t flags)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->configure == NULL) {
         return -ENOSYS;
@@ -114,9 +113,9 @@ static inline int bms_ic_configure(const struct device *dev, struct bms_ic_conf 
  *
  * @return 0 for success or negative error code otherwise.
  */
-static inline void bms_ic_assign_data(const struct device *dev, struct bms_ic_data *ic_data)
+static inline void bms_ic_assign_data(const device_t *dev, bms_ic_data_t *ic_data)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     api->assign_data(dev, ic_data);
 }
@@ -135,9 +134,9 @@ static inline void bms_ic_assign_data(const struct device *dev, struct bms_ic_da
  * @retval -EIO for communication error
  * @retval -ENOMEM if the data was not assigned with @a bms_ic_assign_data
  */
-static inline int bms_ic_read_data(const struct device *dev, uint32_t flags)
+static inline int bms_ic_read_data(const device_t *dev, uint32_t flags)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     return api->read_data(dev, flags);
 }
@@ -152,9 +151,9 @@ static inline int bms_ic_read_data(const struct device *dev, uint32_t flags)
  *
  * @return 0 for success or negative error code otherwise.
  */
-static inline int bms_ic_set_switches(const struct device *dev, uint8_t switches, bool enabled)
+static inline int bms_ic_set_switches(const device_t *dev, uint8_t switches, bool enabled)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->set_switches == NULL) {
         return -ENOSYS;
@@ -173,9 +172,9 @@ static inline int bms_ic_set_switches(const struct device *dev, uint8_t switches
  *
  * @return 0 for success or negative error code otherwise.
  */
-static inline int bms_ic_balance(const struct device *dev, uint32_t cells)
+static inline int bms_ic_balance(const device_t *dev, uint32_t cells)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     return api->balance(dev, cells);
 }
@@ -190,9 +189,9 @@ static inline int bms_ic_balance(const struct device *dev, uint32_t cells)
  *
  * @return 0 for success or negative error code otherwise.
  */
-static inline int bms_ic_set_mode(const struct device *dev, enum bms_ic_mode mode)
+static inline int bms_ic_set_mode(const device_t *dev, bms_ic_mode_t mode)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->set_mode == NULL) {
         return -ENOSYS;
@@ -201,10 +200,9 @@ static inline int bms_ic_set_mode(const struct device *dev, enum bms_ic_mode mod
     return api->set_mode(dev, mode);
 }
 
-static inline int bms_ic_read_mem(const struct device *dev, const uint16_t addr, uint8_t *data,
-                                  const size_t len)
+static inline int bms_ic_read_mem(const device_t *dev, const uint16_t addr, uint8_t *data, const size_t len)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->read_mem == NULL) {
         return -ENOSYS;
@@ -213,10 +211,9 @@ static inline int bms_ic_read_mem(const struct device *dev, const uint16_t addr,
     return api->read_mem(dev, addr, data, len);
 }
 
-static inline int bms_ic_write_mem(const struct device *dev, const uint16_t addr,
-                                   const uint8_t *data, const size_t len)
+static inline int bms_ic_write_mem(const device_t *dev, const uint16_t addr, const uint8_t *data, const size_t len)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->write_mem == NULL) {
         return -ENOSYS;
@@ -225,9 +222,9 @@ static inline int bms_ic_write_mem(const struct device *dev, const uint16_t addr
     return api->write_mem(dev, addr, data, len);
 }
 
-static inline int bms_ic_debug_print_mem(const struct device *dev)
+static inline int bms_ic_debug_print_mem(const device_t *dev)
 {
-    const struct bms_ic_driver_api *api = (const struct bms_ic_driver_api *)dev->api;
+    const bms_ic_driver_api_t *api = (const bms_ic_driver_api_t *)dev->api;
 
     if (api->debug_print_mem == NULL) {
         return -ENOSYS;

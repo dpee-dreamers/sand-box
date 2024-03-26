@@ -11,16 +11,26 @@
 //#include <drivers/bms_ic.h>
 #include <stdint.h>
 #include <string.h>
+
+#ifndef STM32F4XX_H
+#include "stm32f4xx_hal.h"
+#endif
+
+#ifndef STM324XX_HAL_I2C_H
+#include "stm32f4xx_hal_i2c.h"
+#endif
+
 #include "bms_ic.h"
 
-struct i2c_dt_spec {
-	const struct device *bus;
-	uint16_t addr;
-};
 
-//#include <zephyr/device.h>
-//#include <zephyr/drivers/gpio.h>
-//#include <zephyr/drivers/i2c.h>
+typedef struct {
+
+    /** @TODO: need to be check again */
+	//const device_t *bus;
+	I2C_HandleTypeDef	*i2cHandle;
+
+	uint16_t addr;
+} i2c_spec_t;
 
 /**
  * Writes multiple bytes to bq769x2 IC registers
@@ -32,7 +42,7 @@ struct i2c_dt_spec {
  * @returns 0 if successful, negative errno otherwise
  */
 
-typedef int (*bq769x2_write_bytes_t)(const struct device *dev, const uint8_t reg_addr,
+typedef int (*bq769x2_write_bytes_t)(const device_t *dev, const uint8_t reg_addr,
                                      const uint8_t *data, const size_t num_bytes);
 
 /**
@@ -44,14 +54,16 @@ typedef int (*bq769x2_write_bytes_t)(const struct device *dev, const uint8_t reg
  *
  * @returns 0 if successful, negative errno otherwise
  */
-typedef int (*bq769x2_read_bytes_t)(const struct device *dev, const uint8_t reg_addr, uint8_t *data,
+typedef int (*bq769x2_read_bytes_t)(const device_t *dev, const uint8_t reg_addr, uint8_t *data,
                                     const size_t num_bytes);
 
 /* read-only driver configuration */
-struct bms_ic_bq769x2_config
-{
-    struct i2c_dt_spec i2c;
+typedef struct {
+    i2c_spec_t i2c;
+
+    /** @TODO: need to be check again */
     //struct gpio_dt_spec alert_gpio;
+
     uint32_t shunt_resistor_uohm;
     uint32_t board_max_current;
     uint16_t used_cell_channels;
@@ -64,14 +76,13 @@ struct bms_ic_bq769x2_config
     uint8_t reg12_config;
     bq769x2_write_bytes_t write_bytes;
     bq769x2_read_bytes_t read_bytes;
-};
+} bms_ic_bq769x2_config_t;
 
 /* driver run-time data */
-struct bms_ic_bq769x2_data
-{
-    struct bms_ic_data *ic_data;
+typedef struct {
+    bms_ic_data_t *ic_data;
     bool config_update_mode_enabled;
-};
+} bms_ic_bq769x2_data_t;
 
 
 #endif /* BQ769X2_BQ769X2_PRIV_H_ */

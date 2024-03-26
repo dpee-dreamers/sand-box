@@ -17,7 +17,7 @@
 
 
 
-void bms_soc_reset(struct bms_context *bms, int percent)
+void bms_soc_reset(bms_context_t *bms, int percent)
 {
     if (percent <= 100 && percent >= 0) {
         bms->soc = percent;
@@ -39,10 +39,11 @@ void bms_soc_reset(struct bms_context *bms, int percent)
     }
 }
 
-void bms_soc_update(struct bms_context *bms)
+void bms_soc_update(bms_context_t *bms)
 {
     static float coulomb_counter_mAs = 0;
     static int64_t last_update = 0;
+    /** @TODO: need to be fixed */
     int64_t now = k_uptime_get();
 
     coulomb_counter_mAs += bms->ic_data.current * (now - last_update);

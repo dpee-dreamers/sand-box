@@ -12,20 +12,25 @@
 #include <stdint.h>
 
 #include "bms_common.h"
-//#include  "bms_ic.h"
+#include "bms_utils.h"
+
 
 /* fixed number of OCV vs. SOC points */
 #define OCV_POINTS 21
 #define CONFIG_BMS_IC_MAX_CELLS 16
 #define CONFIG_BMS_IC_MAX_THERMISTORS 3
 
-struct device_state {
+#define CONFIG_BMS_IC_SWITCHES
+#define CONFIG_BMS_IC_CURRENT_MONITORING
+
+typedef struct {
 
 	uint8_t init_res;
 
 	bool initialized : 1;
-};
-struct device{
+} device_state_t;
+
+typedef struct {
 	/** Name of the device instance */
 	const char *name;
 	/** Address of device instance config information */
@@ -33,15 +38,15 @@ struct device{
 	/** Address of the API structure exposed by the device instance */
 	const void *api;
 	/** Address of the common device state */
-	struct device_state *state;
+	device_state_t *state;
 	/** Address of the device instance private data */
 	void *data;
-};
+} device_t;
+
 /**
  * BMS IC operation modes
  */
-enum bms_ic_mode
-{
+typedef enum {
     /** Normal operation */
     BMS_IC_MODE_ACTIVE,
     /** Low-power mode with FETs still enabled */
@@ -50,12 +55,12 @@ enum bms_ic_mode
     BMS_IC_MODE_STANDBY,
     /** Lowest power mode with all FETs and regulators disabled */
     BMS_IC_MODE_OFF,
-};
+} bms_ic_mode_t;
 
 /**
  * BMS configuration values, stored in RAM.
  */
-struct bms_ic_conf
+typedef struct
 {
     /* Cell voltage limits */
     /** Cell target charge voltage (V) */
@@ -124,13 +129,12 @@ struct bms_ic_conf
     /* Alert settings */
     /** Error flags which should trigger an alert action (if supported by the IC) */
     uint32_t alert_mask;
-};
+} bms_ic_conf_t;
 
 /**
  * Current BMS IC status including measurements and error flags
  */
-struct bms_ic_data
-{
+typedef struct {
     /** Single cell voltages (V) */
     float cell_voltages[CONFIG_BMS_IC_MAX_CELLS];
     /** Maximum cell voltage (V) */
@@ -146,10 +150,10 @@ struct bms_ic_data
     float external_voltage;
 #endif
 
-//#ifdef CONFIG_BMS_IC_CURRENT_MONITORING
+#ifdef CONFIG_BMS_IC_CURRENT_MONITORING
     /** Module/pack current, charging direction has positive sign (A) */
     float current;
-//#endif
+#endif
 
     /** Cell temperatures (°C) */
     float cell_temps[CONFIG_BMS_IC_MAX_THERMISTORS];
@@ -177,7 +181,8 @@ struct bms_ic_data
 
     /** BMS errors stored as BMS_ERR_* flags */
     uint32_t error_flags;
-};
+} bms_ic_data_t;
+
 /**
  * Possible BMS states
  */
@@ -204,8 +209,7 @@ enum bms_cell_type
 /**
  * Battery Management System context information
  */
-struct bms_context
-{
+typedef struct {
     /** Current state of the battery */
     enum bms_state state;
 
@@ -235,34 +239,34 @@ struct bms_context
     float *soc_points;
 
     /** BMS IC device pointer */
-    const struct device *ic_dev;
+    const device_t *ic_dev;
 
     /** BMS IC configuration applied during start-up. */
-    struct bms_ic_conf ic_conf;
+    bms_ic_conf_t ic_conf;
 
     /** BMS IC data read from the device. */
-    struct bms_ic_data ic_data;
-};
+    bms_ic_data_t ic_data;
+} bms_context_t;
 
 /**
  * @brief Runtime device structure (in ROM) per driver instance
  */
 
 /**
- * Initialization of struct bms_ic_conf with typical default values for the given cell type.
+ * Initialization of bms_ic_conf_t with typical default values for the given cell type.
  *
  * @param bms Pointer to BMS object.
  * @param type One of enum CellType (defined as int so that it can be set via Kconfig).
  * @param nominal_capacity Nominal capacity of the battery pack.
  */
-void bms_init_config(struct bms_context *bms, enum bms_cell_type type, float capacity_Ah);
+void bms_init_config(bms_context_t *bms, enum bms_cell_type type, float capacity_Ah);
 
 /**
  * Main BMS state machine
  *
  * @param bms Pointer to BMS object.
  */
-void bms_state_machine(struct bms_context *bms);
+void bms_state_machine(bms_context_t *bms);
 
 /**
  * Update SOC based on most recent current measurement
@@ -271,7 +275,7 @@ void bms_state_machine(struct bms_context *bms);
  *
  * @param bms Pointer to BMS object.
  */
-void bms_soc_update(struct bms_context *bms);
+void bms_soc_update(bms_context_t *bms);
 
 /**
  * Reset SOC to specified value or calculate based on average cell open circuit voltage
@@ -279,7 +283,7 @@ void bms_soc_update(struct bms_context *bms);
  * @param bms Pointer to BMS object.
  * @param percent 0-100 %, -1 for calculation based on OCV
  */
-void bms_soc_reset(struct bms_context *bms, int percent);
+void bms_soc_reset(bms_context_t *bms, int percent);
 
 /**
  * Charging error flags check
@@ -300,7 +304,7 @@ bool bms_dis_error(uint32_t error_flags);
  *
  * @returns true if no charging error flags are set
  */
-bool bms_chg_allowed(struct bms_context *bms);
+bool bms_chg_allowed(bms_context_t *bms);
 
 /**
  * Check if discharging is allowed
@@ -309,7 +313,7 @@ bool bms_chg_allowed(struct bms_context *bms);
  *
  * @returns true if no discharging error flags are set
  */
-bool bms_dis_allowed(struct bms_context *bms);
+bool bms_dis_allowed(bms_context_t *bms);
 
 
 #endif /* INC_BMS_H_ */

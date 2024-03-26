@@ -14,14 +14,8 @@
 
 #define DT_DRV_COMPAT ti_bq769x2_i2c
 
-#include "bq769x2_interface.h"
-#include "bq769x2_priv.h"
-#include "bq769x2_registers.h"
-
-//#include <bms/bms_common.h>
-//#include <drivers/bms_ic.h>
-#include "bms_common.h"
-#include "bms_ic.h"
+#define BQ76952_DEV_ADDRESS_Write 	0x10<<1
+#define BQ76952_DEV_ADDRESS_Read 	0x11<<1
 
 #include <math.h>
 #include <stdbool.h>
@@ -30,19 +24,23 @@
 #include <string.h>
 #include <errno.h>
 
+#include "bq769x2_interface.h"
+#include "bq769x2_priv.h"
+#include "bq769x2_registers.h"
+
+#include "bms_common.h"
+#include "bms_ic.h"
 #include "bms.h"
-//#include <zephyr/device.h>
-//#include <zephyr/drivers/gpio.h>
-//#include <zephyr/drivers/i2c.h>
-//#include <zephyr/logging/log.h>
-//#include <zephyr/sys/crc.h>
+#include "helper.h"
+#include "bms_utils.h"
 
-LOG_MODULE_REGISTER(bms_ic_bq769x2, CONFIG_BMS_IC_LOG_LEVEL);
+//LOG_MODULE_REGISTER(bms_ic_bq769x2, CONFIG_BMS_IC_LOG_LEVEL);
 
-static int bq769x2_write_bytes_i2c(const struct device *dev, const uint8_t reg_addr,
+static int bq769x2_write_bytes_i2c(const device_t *dev, const uint8_t reg_addr,
                                    const uint8_t *data, const size_t num_bytes)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config; // -> bq769x2_config
+
     uint8_t buf[10] = {
         config->i2c.addr << 1, /* target address for CRC calculation */
         reg_addr,
@@ -55,27 +53,38 @@ static int bq769x2_write_bytes_i2c(const struct device *dev, const uint8_t reg_a
     if (config->crc_enabled) {
         /* first CRC includes target address and register address */
         buf[2] = data[0];
-        buf[3] = crc8_ccitt(0, buf, 3);
+        buf[3] = crc8_ccitt(buf, 3);
 
         /* subsequent CRCs only include the data byte */
         for (int i = 1; i < num_bytes; i++) {
             buf[i * 2 + 2] = data[i];
-            buf[i * 2 + 3] = crc8_ccitt(0, &data[i], 1);
+            buf[i * 2 + 3] = crc8_ccitt(&data[i], 1);
         }
 
-        return i2c_write_dt(&config->i2c, buf + 1, num_bytes * 2 + 1);
+        /** @TODO: need to be check again */
+        //		i2c_write_dt(*i2c, *data, size)
+        //		HAL_I2C_Mem_Write (I2C_HandleTyp,devAddr,MemAddr,MemAddSize,*pData, Size,Timeout)
+        //		i2c.addr	-> 	i2c.addr
+        //		i2c.bus		->	i2c.i2cHandle
+        //
+        //return 	i2c_write_dt(&config->i2c, buf + 1, num_bytes * 2 + 1);
+        return HAL_I2C_Mem_Write (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Write, config->i2c.addr,	\
+        				  I2C_MEMADD_SIZE_8BIT, buf+1, num_bytes*2+1,1000);
     }
     else {
         memcpy(buf + 2, data, num_bytes);
 
-        return i2c_write_dt(&config->i2c, buf + 1, num_bytes + 1);
+        //return i2c_write_dt(&config->i2c, buf + 1, num_bytes + 1);
+        return HAL_I2C_Mem_Write (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Write, config->i2c.addr,	\
+				  I2C_MEMADD_SIZE_8BIT, buf+1, num_bytes+1,1000);
+
     }
 }
 
-static int bq769x2_read_bytes_i2c(const struct device *dev, const uint8_t reg_addr, uint8_t *data,
+static int bq769x2_read_bytes_i2c(const device_t *dev, const uint8_t reg_addr, uint8_t *data,
                                   const size_t num_bytes)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config;
 
     if (config->crc_enabled) {
         if (num_bytes > BQ769X2_DATA_BUFFER_SIZE || num_bytes < 1) {
@@ -98,13 +107,16 @@ static int bq769x2_read_bytes_i2c(const struct device *dev, const uint8_t reg_ad
         uint8_t byte, crc_read;
         int err;
 
-        err = i2c_write_read_dt(&config->i2c, &reg_addr, 1, buf + 3, num_bytes * 2);
+        /** @TODO: need to be check again */
+        //err = i2c_write_read_dt(&config->i2c, &reg_addr, 1, buf + 3, num_bytes * 2);
+        err = HAL_I2C_Mem_Read (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Read, config->i2c.addr,	\
+                				  I2C_MEMADD_SIZE_8BIT, buf+3, num_bytes*2,1000);
         if (err != 0) {
             return err;
         }
 
         /* check CRC of first data byte */
-        if (crc8_ccitt(0, buf, 4) == buf[4]) {
+        if (crc8_ccitt(buf, 4) == buf[4]) {
             data[0] = buf[3];
         }
         else {
@@ -115,7 +127,7 @@ static int bq769x2_read_bytes_i2c(const struct device *dev, const uint8_t reg_ad
         for (int i = 1; i < num_bytes; i++) {
             byte = buf[2 * i + 3];
             crc_read = buf[2 * i + 4];
-            if (crc8_ccitt(0, &byte, 1) == crc_read) {
+            if (crc8_ccitt(&byte, 1) == crc_read) {
                 data[i] = byte;
             }
             else {
@@ -126,26 +138,35 @@ static int bq769x2_read_bytes_i2c(const struct device *dev, const uint8_t reg_ad
         return 0;
     }
     else {
-        return i2c_write_read_dt(&config->i2c, &reg_addr, 1, data, num_bytes);
+        /** @TODO: need to be check again */
+        //return i2c_write_read_dt(&config->i2c, &reg_addr, 1, data, num_bytes);
+        return HAL_I2C_Mem_Read (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Read, config->i2c.addr,	\
+				  I2C_MEMADD_SIZE_8BIT, data, num_bytes,1000);
     }
 }
 
-static int bq769x2_detect_cells(const struct device *dev)
+static int bq769x2_detect_cells(const device_t *dev)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config;
     uint8_t conn_cells = 0;
     uint16_t vcell_mode = 0;
     uint16_t voltage = UINT16_MAX; /* init with implausible value */
     uint32_t stack_voltage_calc = 0;
     int err = 0;
 
-    err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_STACK, &voltage);
+    /** @TODO: need to be check again */
+    //err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_STACK, &voltage);
+	err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_STACK, (int16_t *)&voltage);
     uint32_t stack_voltage_meas = voltage * 10; /* unit: 10 mV */
 
     int last_cell = find_msb_set(config->used_cell_channels);
     for (int i = 0; i < last_cell; i++) {
         if (config->used_cell_channels & BIT(i)) {
-            err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_CELL_1 + i * 2, &voltage);
+
+            /** @TODO: need to be check again */
+            //err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_CELL_1 + i * 2, &voltage);
+            err |= bq769x2_direct_read_i2(dev, BQ769X2_CMD_VOLTAGE_CELL_1 + i * 2, (int16_t *)&voltage);
+
             if (voltage > 500) {
                 /* only voltages >500 mV are considered as connected cells */
                 vcell_mode |= BIT(i);
@@ -163,8 +184,8 @@ static int bq769x2_detect_cells(const struct device *dev)
     if (!IN_RANGE(stack_voltage_calc, stack_voltage_meas - conn_cells * 50,
                   stack_voltage_meas + conn_cells * 50))
     {
-        LOG_ERR("Sum of cell voltages (%u mV) != stack voltage (%u mV)", stack_voltage_calc,
-                stack_voltage_meas);
+        LOG_ERR("Sum of cell voltages (%u mV) != stack voltage (%u mV)", (unsigned int)stack_voltage_calc,
+        		(unsigned int)stack_voltage_meas);
         return -EINVAL;
     }
 
@@ -175,13 +196,13 @@ static int bq769x2_detect_cells(const struct device *dev)
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_cell_ovp(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_cell_ovp(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
 
     uint8_t cov_threshold = lroundf(ic_conf->cell_ov_limit * 1000.0F / 50.6F);
     uint8_t cov_hyst =
-        lroundf(MAX(ic_conf->cell_ov_limit - ic_conf->cell_ov_reset, 0) * 1000.0F / 50.6F);
+        lroundf(fmax(ic_conf->cell_ov_limit - ic_conf->cell_ov_reset, 0) * 1000.0F / 50.6F);
     uint16_t cov_delay = lroundf(ic_conf->cell_ov_delay_ms / 3.3F);
 
     cov_threshold = CLAMP(cov_threshold, 20, 110);
@@ -201,13 +222,13 @@ static int bq769x2_configure_cell_ovp(const struct device *dev, struct bms_ic_co
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_cell_uvp(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_cell_uvp(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
 
     uint8_t cuv_threshold = lroundf(ic_conf->cell_uv_limit * 1000.0F / 50.6F);
     uint8_t cuv_hyst =
-        lroundf(MAX(ic_conf->cell_uv_reset - ic_conf->cell_uv_limit, 0) * 1000.0F / 50.6F);
+        lroundf(fmax(ic_conf->cell_uv_reset - ic_conf->cell_uv_limit, 0) * 1000.0F / 50.6F);
     uint16_t cuv_delay = lroundf(ic_conf->cell_uv_delay_ms / 3.3F);
 
     cuv_threshold = CLAMP(cuv_threshold, 20, 90);
@@ -233,7 +254,7 @@ static int bq769x2_configure_cell_uvp(const struct device *dev, struct bms_ic_co
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_temp_limits(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_temp_limits(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
     uint8_t hyst = CLAMP(ic_conf->temp_limit_hyst, 1, 20);
@@ -287,12 +308,12 @@ static int bq769x2_configure_temp_limits(const struct device *dev, struct bms_ic
 
 #ifdef CONFIG_BMS_IC_CURRENT_MONITORING
 
-static int bq769x2_configure_chg_ocp(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_chg_ocp(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
-    const struct bms_ic_bq769x2_config *dev_config = dev->config;
+    const bms_ic_bq769x2_config_t *dev_config = dev->config;
     int err = 0;
 
-    float oc_limit = MIN(ic_conf->chg_oc_limit, dev_config->board_max_current);
+    float oc_limit = fmin(ic_conf->chg_oc_limit, dev_config->board_max_current);
     uint8_t oc_threshold = lroundf(oc_limit * dev_config->shunt_resistor_uohm / 2000.0F);
     int16_t oc_delay = lroundf((ic_conf->chg_oc_delay_ms - 6.6F) / 3.3F);
 
@@ -316,12 +337,12 @@ static int bq769x2_configure_chg_ocp(const struct device *dev, struct bms_ic_con
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_dis_ocp(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_dis_ocp(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
-    const struct bms_ic_bq769x2_config *dev_config = dev->config;
+    const bms_ic_bq769x2_config_t *dev_config = dev->config;
     int err = 0;
 
-    float oc_limit = MIN(ic_conf->dis_oc_limit, dev_config->board_max_current);
+    float oc_limit = fmin(ic_conf->dis_oc_limit, dev_config->board_max_current);
     uint8_t oc_threshold = lroundf(oc_limit * dev_config->shunt_resistor_uohm / 2000.0F);
     int16_t oc_delay = lroundf((ic_conf->dis_oc_delay_ms - 6.6F) / 3.3F);
 
@@ -345,9 +366,9 @@ static int bq769x2_configure_dis_ocp(const struct device *dev, struct bms_ic_con
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_dis_scp(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_dis_scp(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
-    const struct bms_ic_bq769x2_config *dev_config = dev->config;
+    const bms_ic_bq769x2_config_t *dev_config = dev->config;
     int err = 0;
 
     uint8_t scp_threshold = 0;
@@ -374,7 +395,7 @@ static int bq769x2_configure_dis_scp(const struct device *dev, struct bms_ic_con
 
 #endif /* CONFIG_BMS_IC_CURRENT_MONITORING */
 
-static int bq769x2_configure_balancing(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_balancing(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
 
@@ -416,7 +437,7 @@ static int bq769x2_configure_balancing(const struct device *dev, struct bms_ic_c
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_alerts(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_alerts(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
 
@@ -461,7 +482,7 @@ static int bq769x2_configure_alerts(const struct device *dev, struct bms_ic_conf
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_configure_voltage_regs(const struct device *dev, struct bms_ic_conf *ic_conf)
+static int bq769x2_configure_voltage_regs(const device_t *dev, bms_ic_conf_t *ic_conf)
 {
     int err = 0;
 
@@ -489,9 +510,9 @@ static int bq769x2_configure_voltage_regs(const struct device *dev, struct bms_i
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_init_config(const struct device *dev)
+static int bq769x2_init_config(const device_t *dev)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config;
     int err = 0;
 
     /* Shunt value based on nominal value of VREF2 (could be improved by calibration) */
@@ -553,7 +574,7 @@ static int bq769x2_init_config(const struct device *dev)
     return err == 0 ? 0 : -EIO;
 }
 
-static int bms_ic_bq769x2_configure(const struct device *dev, struct bms_ic_conf *ic_conf,
+static int bms_ic_bq769x2_configure(const device_t *dev, bms_ic_conf_t *ic_conf,
                                     uint32_t flags)
 {
     uint32_t actual_flags = 0;
@@ -605,9 +626,9 @@ static int bms_ic_bq769x2_configure(const struct device *dev, struct bms_ic_conf
     return (actual_flags != 0) ? actual_flags : -ENOTSUP;
 }
 
-static int bq769x2_read_cell_voltages(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_cell_voltages(const device_t *dev, bms_ic_data_t *ic_data)
 {
-    const struct bms_ic_bq769x2_config *dev_config = dev->config;
+    const bms_ic_bq769x2_config_t *dev_config = dev->config;
     int16_t voltage = 0;
     uint8_t conn_cells = 0;
     int cell_index = 0;
@@ -649,7 +670,7 @@ static int bq769x2_read_cell_voltages(const struct device *dev, struct bms_ic_da
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_read_total_voltages(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_total_voltages(const device_t *dev, bms_ic_data_t *ic_data)
 {
     int16_t voltage = 0;
     int err;
@@ -665,9 +686,9 @@ static int bq769x2_read_total_voltages(const struct device *dev, struct bms_ic_d
     return err == 0 ? 0 : -EIO;
 }
 
-static int bq769x2_read_temperatures(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_temperatures(const device_t *dev, bms_ic_data_t *ic_data)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config;
     int16_t temp = 0; /* unit: 0.1 K */
     float sum_temps = 0;
     float temp_max = -1000, temp_min = 1000;
@@ -713,7 +734,7 @@ static int bq769x2_read_temperatures(const struct device *dev, struct bms_ic_dat
 
 #ifdef CONFIG_BMS_IC_CURRENT_MONITORING
 
-static int bq769x2_read_current(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_current(const device_t *dev, bms_ic_data_t *ic_data)
 {
     int16_t current = 0;
     int err;
@@ -726,7 +747,7 @@ static int bq769x2_read_current(const struct device *dev, struct bms_ic_data *ic
 
 #endif /* CONFIG_BMS_IC_CURRENT_MONITORING */
 
-static int bq769x2_read_balancing(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_balancing(const device_t *dev, bms_ic_data_t *ic_data)
 {
     uint16_t balancing_status;
     int err;
@@ -740,7 +761,7 @@ static int bq769x2_read_balancing(const struct device *dev, struct bms_ic_data *
     return err;
 }
 
-static int bq769x2_read_error_flags(const struct device *dev, struct bms_ic_data *ic_data)
+static int bq769x2_read_error_flags(const device_t *dev, bms_ic_data_t *ic_data)
 {
     union bq769x2_reg_safety_a safety_status_a;
     union bq769x2_reg_safety_b safety_status_b;
@@ -777,10 +798,10 @@ static int bq769x2_read_error_flags(const struct device *dev, struct bms_ic_data
     return 0;
 }
 
-static int bms_ic_bq769x2_read_data(const struct device *dev, uint32_t flags)
+static int bms_ic_bq769x2_read_data(const device_t *dev, uint32_t flags)
 {
-    struct bms_ic_bq769x2_data *dev_data = dev->data;
-    struct bms_ic_data *ic_data = dev_data->ic_data;
+    bms_ic_bq769x2_data_t *dev_data = dev->data;
+    bms_ic_data_t *ic_data = dev_data->ic_data;
     uint32_t actual_flags = 0;
     int err = 0;
 
@@ -827,16 +848,16 @@ static int bms_ic_bq769x2_read_data(const struct device *dev, uint32_t flags)
     return (flags == actual_flags) ? 0 : -EINVAL;
 }
 
-static void bms_ic_bq769x2_assign_data(const struct device *dev, struct bms_ic_data *ic_data)
+static void bms_ic_bq769x2_assign_data(const device_t *dev, bms_ic_data_t *ic_data)
 {
-    struct bms_ic_bq769x2_data *dev_data = dev->data;
+    bms_ic_bq769x2_data_t *dev_data = dev->data;
 
     dev_data->ic_data = ic_data;
 }
 
 #ifdef CONFIG_BMS_IC_SWITCHES
 
-static int bms_ic_bq769x2_set_switches(const struct device *dev, uint8_t switches, bool enabled)
+static int bms_ic_bq769x2_set_switches(const device_t *dev, uint8_t switches, bool enabled)
 {
     union bq769x2_reg_fet_status fet_status;
     int err;
@@ -873,7 +894,7 @@ static int bms_ic_bq769x2_set_switches(const struct device *dev, uint8_t switche
 
 #endif /* CONFIG_BMS_IC_SWITCHES */
 
-static int bms_ic_bq769x2_balance(const struct device *dev, uint32_t cells)
+static int bms_ic_bq769x2_balance(const device_t *dev, uint32_t cells)
 {
     if (cells == BMS_IC_BALANCING_OFF) {
         return bq769x2_datamem_write_u1(dev, BQ769X2_SET_CBAL_CONF, 0x00);
@@ -891,12 +912,12 @@ static int bms_ic_bq769x2_balance(const struct device *dev, uint32_t cells)
         if (err != 0) {
             return err;
         }
-        /* ToDo: Consider bq chip number and gaps in CB_ACTIVE_CELLS */
+        /* @TODO: Consider bq chip number and gaps in CB_ACTIVE_CELLS */
         return bq769x2_subcmd_write_u2(dev, BQ769X2_SUBCMD_CB_ACTIVE_CELLS, (uint16_t)cells);
     }
 }
 
-static int bq769x2_activate(const struct device *dev)
+static int bq769x2_activate(const device_t *dev)
 {
     uint16_t device_number;
     int err = 0;
@@ -907,6 +928,8 @@ static int bq769x2_activate(const struct device *dev)
          * because of glitches in the I2C communication after MCU reset. Retry multiple times.
          */
         LOG_ERR("Failed to read from BMS IC with error %d, retrying in 10s", err);
+
+        /** @TODO: need to be fixed */
         k_sleep(K_MSEC(10000));
     }
 
@@ -924,7 +947,7 @@ static int bq769x2_activate(const struct device *dev)
     return err == 0 ? 0 : -EIO;
 }
 
-static int bms_ic_bq769x2_set_mode(const struct device *dev, enum bms_ic_mode mode)
+static int bms_ic_bq769x2_set_mode(const device_t *dev, bms_ic_mode_t mode)
 {
     switch (mode) {
         case BMS_IC_MODE_ACTIVE:
@@ -936,22 +959,25 @@ static int bms_ic_bq769x2_set_mode(const struct device *dev, enum bms_ic_mode mo
     }
 }
 
-static int bq769x2_init(const struct device *dev)
+static int bq769x2_init(const device_t *dev)
 {
-    const struct bms_ic_bq769x2_config *config = dev->config;
+    const bms_ic_bq769x2_config_t *config = dev->config;
 
-    if (!i2c_is_ready_dt(&config->i2c)) {
+    /** @TODO: need to be fixed */
+    //if (!i2c_is_ready_dt(&config->i2c)) {
+    //HAL_I2C_IsDeviceReady (I2C_HandleTypeDef * hi2c, uint16_t DevAddress, uint32_tTrials, uint32_t Timeout)
+      if (HAL_I2C_IsDeviceReady (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Read,1,1)) {
         LOG_ERR("I2C device not ready");
         return -ENODEV;
     }
-
+    /** @TODO: need to be fixed */
     /* Datasheet: Start-up time max. 4.3 ms */
     k_sleep(K_TIMEOUT_ABS_MS(5));
 
     return 0;
 }
 
-static const struct bms_ic_driver_api bq769x2_driver_api = {
+static const bms_ic_driver_api_t bq769x2_driver_api = {
     .configure = bms_ic_bq769x2_configure,
     .assign_data = bms_ic_bq769x2_assign_data,
     .read_data = bms_ic_bq769x2_read_data,
@@ -962,45 +988,52 @@ static const struct bms_ic_driver_api bq769x2_driver_api = {
     .set_mode = bms_ic_bq769x2_set_mode,
 };
 
-//#define BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, prop) \
-    BUILD_ASSERT(COND_CODE_0(IS_ENABLED(CONFIG_BMS_IC_CURRENT_MONITORING), (1), \
-                             (DT_INST_PROP_OR(index, prop, 0) > 0)), \
-                 "Devicetree properties shunt-resistor-uohm and board-max-current " \
-                 "must be greater than 0 for CONFIG_BMS_IC_CURRENT_MONITORING=y")
+// //#define BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, prop) \
+//     BUILD_ASSERT(COND_CODE_0(IS_ENABLED(CONFIG_BMS_IC_CURRENT_MONITORING), (1), \
+//                              (DT_INST_PROP_OR(index, prop, 0) > 0)), \
+//                  "Devicetree properties shunt-resistor-uohm and board-max-current " \
+//                  "must be greater than 0 for CONFIG_BMS_IC_CURRENT_MONITORING=y")
 
-//#define BQ769X2_INIT(index) \
-    static struct bms_ic_bq769x2_data bq769x2_data_##index = { 0 }; \
-    BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, shunt_resistor_uohm); \
-    BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, board_max_current); \
-    static const struct bms_ic_bq769x2_config bq769x2_config_##index = {                   \
-		.i2c = I2C_DT_SPEC_INST_GET(index),                                                \
-		.alert_gpio = GPIO_DT_SPEC_INST_GET(index, alert_gpios),                           \
-		.shunt_resistor_uohm = DT_INST_PROP_OR(index, shunt_resistor_uohm, 1000),          \
-		.board_max_current = DT_INST_PROP_OR(index, board_max_current, 0),                 \
-		.used_cell_channels = DT_INST_PROP(index, used_cell_channels),                     \
-		.pin_config =                                                                      \
-			{                                                                              \
-				DT_INST_PROP_OR(index, cfetoff_pin_config, 0),                             \
-				DT_INST_PROP_OR(index, dfetoff_pin_config, 0),                             \
-				DT_INST_PROP_OR(index, alert_pin_config, 0),                               \
-				DT_INST_PROP_OR(index, ts1_pin_config, 0x07),                              \
-				DT_INST_PROP_OR(index, ts2_pin_config, 0),                                 \
-				DT_INST_PROP_OR(index, ts3_pin_config, 0),                                 \
-				DT_INST_PROP_OR(index, hdq_pin_config, 0),                                 \
-				DT_INST_PROP_OR(index, dchg_pin_config, 0),                                \
-				DT_INST_PROP_OR(index, ddsg_pin_config, 0),                                \
-			},                                                                             \
-		.cell_temp_pins = DT_INST_PROP(index, cell_temp_pins),                             \
-		.num_cell_temps = DT_INST_PROP_LEN(index, cell_temp_pins),                         \
-		.fet_temp_pin = DT_INST_PROP_OR(index, fet_temp_pin, UINT8_MAX),                   \
-		.crc_enabled = DT_INST_PROP(index, crc_enabled),                                   \
-		.auto_pdsg = DT_INST_PROP(index, auto_pdsg),                                       \
-		.reg12_config = DT_INST_PROP(index, reg12_config),                                 \
-		.write_bytes = bq769x2_write_bytes_i2c,                                            \
-		.read_bytes = bq769x2_read_bytes_i2c,                                              \
-	}; \
-    DEVICE_DT_INST_DEFINE(index, &bq769x2_init, NULL, &bq769x2_data_##index, \
-                          &bq769x2_config_##index, POST_KERNEL, CONFIG_BMS_IC_INIT_PRIORITY, \
-                          &bq769x2_driver_api);
+ //#define BQ769X2_INIT(index) \
+     static bms_ic_bq769x2_data_t bq769x2_data_##index = { 0 }; \
+     BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, shunt_resistor_uohm); \
+     BQ769X2_ASSERT_CURRENT_MONITORING_PROP_GREATER_ZERO(index, board_max_current); \
+     static const bms_ic_bq769x2_config_t bq769x2_config_##index = {                   \
+ 		.i2c = I2C_DT_SPEC_INST_GET(index),                                                \
+ 		.alert_gpio = GPIO_DT_SPEC_INST_GET(index, alert_gpios),                           \
+ 		.shunt_resistor_uohm = DT_INST_PROP_OR(index, shunt_resistor_uohm, 1000),          \
+ 		.board_max_current = DT_INST_PROP_OR(index, board_max_current, 0),                 \
+ 		.used_cell_channels = DT_INST_PROP(index, used_cell_channels),                     \
+ 		.pin_config =                                                                      \
+ 			{                                                                              \
+ 				DT_INST_PROP_OR(index, cfetoff_pin_config, 0),                             \
+ 				DT_INST_PROP_OR(index, dfetoff_pin_config, 0),                             \
+ 				DT_INST_PROP_OR(index, alert_pin_config, 0),                               \
+ 				DT_INST_PROP_OR(index, ts1_pin_config, 0x07),                              \
+ 				DT_INST_PROP_OR(index, ts2_pin_config, 0),                                 \
+ 				DT_INST_PROP_OR(index, ts3_pin_config, 0),                                 \
+ 				DT_INST_PROP_OR(index, hdq_pin_config, 0),                                 \
+ 				DT_INST_PROP_OR(index, dchg_pin_config, 0),                                \
+ 				DT_INST_PROP_OR(index, ddsg_pin_config, 0),                                \
+ 			},                                                                             \
+ 		.cell_temp_pins = DT_INST_PROP(index, cell_temp_pins),                             \
+ 		.num_cell_temps = DT_INST_PROP_LEN(index, cell_temp_pins),                         \
+ 		.fet_temp_pin = DT_INST_PROP_OR(index, fet_temp_pin, UINT8_MAX),                   \
+ 		.crc_enabled = DT_INST_PROP(index, crc_enabled),                                   \
+ 		.auto_pdsg = DT_INST_PROP(index, auto_pdsg),                                       \
+ 		.reg12_config = DT_INST_PROP(index, reg12_config),                                 \
+ 		.write_bytes = bq769x2_write_bytes_i2c,                                            \
+ 		.read_bytes = bq769x2_read_bytes_i2c,                                              \
+ 	}; \
+     DEVICE_DT_INST_DEFINE(index, &bq769x2_init, NULL, &bq769x2_data_##index, \
+                           &bq769x2_config_##index, POST_KERNEL, CONFIG_BMS_IC_INIT_PRIORITY, \
+                           &bq769x2_driver_api);
 
-//DT_INST_FOREACH_STATUS_OKAY(BQ769X2_INIT)
+// //DT_INST_FOREACH_STATUS_OKAY(BQ769X2_INIT)
+/** @TODO: need to be fixed */
+#define BQ769X2_INIT(index) \
+     static bms_ic_bq769x2_data_t bq769x2_data_index = { 0 }; \
+     static const bms_ic_bq769x2_config_t bq769x2_config_index= {                   \                                \
+ 		.write_bytes = bq769x2_write_bytes_i2c,                                            \
+ 		.read_bytes = bq769x2_read_bytes_i2c,                                              \
+ 	};
