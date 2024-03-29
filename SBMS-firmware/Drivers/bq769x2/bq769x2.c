@@ -929,8 +929,9 @@ static int bq769x2_activate(const device_t *dev)
          */
         LOG_ERR("Failed to read from BMS IC with error %d, retrying in 10s", err);
 
-        /** @TODO: need to be fixed */
-        k_sleep(K_MSEC(10000));
+        /** @TODO: need to be check again */
+        //k_sleep(K_MSEC(10000));
+        HAL_Delay(10000);
     }
 
     err |= bq769x2_config_update_mode(dev, true);
@@ -963,16 +964,17 @@ static int bq769x2_init(const device_t *dev)
 {
     const bms_ic_bq769x2_config_t *config = dev->config;
 
-    /** @TODO: need to be fixed */
+    /** @TODO: need to be check again */
     //if (!i2c_is_ready_dt(&config->i2c)) {
     //HAL_I2C_IsDeviceReady (I2C_HandleTypeDef * hi2c, uint16_t DevAddress, uint32_tTrials, uint32_t Timeout)
       if (HAL_I2C_IsDeviceReady (config->i2c.i2cHandle, BQ76952_DEV_ADDRESS_Read,1,1)) {
         LOG_ERR("I2C device not ready");
         return -ENODEV;
     }
-    /** @TODO: need to be fixed */
+    /** @TODO: need to be check again */
     /* Datasheet: Start-up time max. 4.3 ms */
-    k_sleep(K_TIMEOUT_ABS_MS(5));
+    //k_sleep(K_TIMEOUT_ABS_MS(5));
+    HAL_Delay(5);
 
     return 0;
 }

@@ -15,7 +15,9 @@
 #include "helper.h"
 #include "bms.h"
 
-
+#ifndef STM32F4XX_H
+#include "stm32f4xx_hal.h"
+#endif
 
 void bms_soc_reset(bms_context_t *bms, int percent)
 {
@@ -44,8 +46,9 @@ void bms_soc_update(bms_context_t *bms)
     static float coulomb_counter_mAs = 0;
     static int64_t last_update = 0;
     /** @TODO: need to be fixed */
-    int64_t now = k_uptime_get();
-
+     int64_t now = k_uptime_get();
+    //HAL_GetTick()
+    //int64_t now = HAL_GetTick();
     coulomb_counter_mAs += bms->ic_data.current * (now - last_update);
     float soc_delta = coulomb_counter_mAs / (bms->nominal_capacity_Ah * 3.6e4F);
 
